@@ -1,6 +1,10 @@
 #include <iostream>
+#include <fstream>
+#include <chrono>
+#include <cublas_v2.h>
 #include "../include/sma_runner.cuh"
 #include "../include/sma_cuda_func.cuh"
+#include "../include/file_operations.h"
 
 void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     // Setup timing information
@@ -149,4 +153,71 @@ void sma(struct algorithm_data& AD, struct timing_data& TD) {
     // Delete allocated memory for window average data and maxima
     delete[] AD.window_average_data;
     delete[] AD.maxima;
+}
+
+void initialize_sma(const struct program_args& PA) {
+        // Assign memory to store input file data
+        float* raw_data;
+        raw_data = new float[PA.DATA_PACKET_SIZE / sizeof(float)];
+    
+        // Read in input data
+        std::cout << "SMA: Reading file ..." << std::endl;
+        read_bin(PA.FILEIN, raw_data, PA.DATA_PACKET_SIZE / sizeof(float));
+        std::cout << "SMA: File read" << std::endl;
+    
+        // Create struct to store algortim information
+        struct algorithm_data AD = {PA.DATA_PACKET_SIZE / sizeof(float), // NUM_VALUES
+                            PA.DATA_PACKET_SIZE / sizeof(float) / WINDOW_SIZE, // NUM_WINDOWS
+                            0, // minima_count
+                            NULL, // cudaNUM_WINDOWS
+                            raw_data, // raw_data
+                            NULL, // window_average_data
+                            NULL, // maxima
+                            NULL, //minima
+                            NULL, // cudaRD
+                            NULL, // cudaWA
+                            NULL}; // cudaM
+    
+        // Create struct to store timing information
+        struct timing_data TD = {0,0,0,0,0,0};
+    
+        for (int i = 0; i < PA.NUM_ITER; i++) {
+            std::cout << "SMA: Running iteration " << i << std::endl;
+            // Run loop to run sma algorithm NUM_ITER times and sum timing results
+            const auto t1 = std::chrono::high_resolution_clock::now();
+            // Run sma algorithm
+            sma(AD, TD);
+            const auto t2 = std::chrono::high_resolution_clock::now();
+            const std::chrono::duration<double> ms_double = t2 - t1;
+            // Sum timing results
+            TD.avg_delta += ms_double.count();
+        }
+    
+        // Delete assigned memory for raw_data
+        delete[] AD.raw_data;
+    
+        // Calculate average timing results from summed
+        TD.avg_delta /= PA.NUM_ITER;
+        TD.avg_delta_transin /= PA.NUM_ITER;
+        TD.avg_delta_wavg /= PA.NUM_ITER;
+        TD.avg_delta_peak /= PA.NUM_ITER;
+        TD.avg_delta_min /= PA.NUM_ITER;
+        TD.avg_delta_transout /= PA.NUM_ITER;
+    
+        // Export timing data to timing_data.csv
+        std::ofstream timing_data;
+        timing_data.open(PA.TIMING_OUT, std::ios::app);
+    
+        std::cout << "SMA: Writing timing data and minima outputs to tests/" << std::endl;
+        timing_data << "CUDA" << "," << AD.NUM_VALUES << "," << TD.avg_delta_transin << "," << TD.avg_delta_wavg << "," << TD.avg_delta_peak << "," << TD.avg_delta_min << "," << TD.avg_delta_transout << "," << TD.avg_delta << std::endl;
+        timing_data.close();
+    
+        // Write minima information to binary file
+        write_bin(PA.MINIMA_OUT, AD.minima, AD.NUM_WINDOWS);
+    
+        std::cout << "SMA: Finished writing data" << std::endl;
+        std::cout << "SMA: Completed sucessfully, exiting" << std::endl;
+    
+        // Delete memory assigned for minima
+        delete[] AD.minima;
 }

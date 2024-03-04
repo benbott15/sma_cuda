@@ -5,7 +5,8 @@
 #include "include/sma_runner.cuh"
 
 int main(int argc, char* argv[]) {
-    if (argc != 1 || argc != 2) {
+    if (argc < 2) {
+        std::cout << argc << std::endl;
         std::cout << "Error: Invalid Command Line Arguments - run '-h' for help" << std::endl;
         std::cout << "SMA: Exiting" << std::endl;
         exit(0);
@@ -68,6 +69,7 @@ int main(int argc, char* argv[]) {
     struct timing_data TD = {0,0,0,0};
 
     for (size_t i = 0; i < NUM_ITER; i++) {
+        std::cout << std::endl;
         std::cout << "SMA: Running iteration " << i << std::endl;
         // Run loop to run sma algorithm NUM_ITER times and sum timing results
         const auto t1 = std::chrono::high_resolution_clock::now();

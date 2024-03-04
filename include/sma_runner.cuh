@@ -14,9 +14,6 @@ struct timing_data {
 struct algorithm_data {
     const size_t NUM_VALUES;
     const size_t NUM_WINDOWS;
-    const size_t NUM_THREADS;
-    size_t chunk_size;
-    size_t chunk_size_reduced;
     int minima_count;
     int* cudaNUM_WINDOWS;
     float* raw_data;

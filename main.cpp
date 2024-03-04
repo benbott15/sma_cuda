@@ -3,8 +3,6 @@
 #include "include/sma_runner.cuh"
 
 int main(int argc, char* argv[]) {
-    std::cout << argc << std::endl;
-
     // Check for invalid amount of arguments - prevents segmentation fault
     if (argc < 2) {
         std::cout << argc << std::endl;

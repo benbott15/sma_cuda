@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include "file_operations.h"
+#include "../include/file_operations.h"
 
 void read_bin(const std::string& filename, float* output, int size) {
     std::fstream fin;

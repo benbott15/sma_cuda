@@ -4,6 +4,7 @@
 
 # CUDA directory:
 CUDA_ROOT_DIR=/usr/local/cuda-11
+NVCC_DIR=$(CUDA_ROOT_DIR)/bin
 
 ##########################################################
 
@@ -19,7 +20,7 @@ CC_LIBS= -lstdc++fs
 ## NVCC COMPILER OPTIONS ##
 
 # NVCC compiler options:
-NVCC=nvcc
+NVCC=$(NVCC_DIR)/nvcc
 NVCC_FLAGS=
 NVCC_LIBS= -lcublas
 
@@ -28,7 +29,7 @@ CUDA_LIB_DIR= -L$(CUDA_ROOT_DIR)/lib64
 # CUDA include directory:
 CUDA_INC_DIR= -I$(CUDA_ROOT_DIR)/include
 # CUDA linking libraries:
-CUDA_LINK_LIBS= -lcudart
+CUDA_LINK_LIBS= -lcudart -lcublas
 
 ##########################################################
 
@@ -51,7 +52,7 @@ INC_DIR = include
 EXE = sma_cuda
 
 # Object files:
-OBJS = $(OBJ_DIR)/main.o $(OBJ_DIR)/file_operations.o $(OBJ_DIR)/sma_cuda_func.o $(OBJ_DIR)/sma_runner.o
+OBJS = $(OBJ_DIR)/file_operations.o $(OBJ_DIR)/sma_cuda_func.o $(OBJ_DIR)/sma_runner.o $(OBJ_DIR)/main.o
 
 ##########################################################
 

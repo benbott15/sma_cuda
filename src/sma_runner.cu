@@ -1,41 +1,6 @@
 #include <iostream>
-#include "sma_runner.cuh"
-
-void sma(struct algorithm_data& AD, struct timing_data& TD) {
-    // Allocate memory to store window average data
-    AD.window_average_data = new float[AD.NUM_VALUES / WINDOW_SIZE];
-
-    // Allocate memory to store maxima data
-    AD.maxima = new float[AD.NUM_VALUES / WINDOW_SIZE];
-    AD.maxima[0] = 0;
-    AD.maxima[AD.NUM_VALUES / WINDOW_SIZE - 1] = 0;
-
-    // Allocate memory to store minima
-    AD.minima = new float[AD.NUM_WINDOWS];
-
-    // Run window averaging
-    wa_runner_cuda(AD, TD);
-
-    // Run find peaks to locate pulses
-    find_peaks_cuda_runner(AD, TD);
-
-    // Run find minima to find minimum in pulse containing regions
-    find_minima_runner_cuda(AD, TD);
-
-    /*
-    // Count found minima to ensure correct value
-    for (size_t i = 0; i < AD.NUM_WINDOWS; i++) {
-        if (AD.minima[i] != 0) {
-            AD.minima_count += 1;
-        }
-    }
-    std::cout << "Minima found: " << AD.minima_count << std::endl;
-    */
-
-    // Delete allocated memory for window average data and maxima
-    delete[] AD.window_average_data;
-    delete[] AD.maxima;
-}
+#include "../include/sma_runner.cuh"
+#include "../include/sma_cuda_func.cuh"
 
 void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     // Setup timing information
@@ -120,7 +85,7 @@ void find_peaks_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
     TD.avg_delta_peak += elapsed_time;
 }
 
-void find_minima_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
+void find_minima_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
     // Setup timing information
     cudaEvent_t     start, stop;
     cudaEventCreate( &start );
@@ -148,4 +113,40 @@ void find_minima_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) 
     cudaEventElapsedTime( &elapsed_time, start, stop );
     printf( "Time to find minima:  %3.4f ms\n", elapsed_time );
     TD.avg_delta_min += elapsed_time;
+}
+
+void sma(struct algorithm_data& AD, struct timing_data& TD) {
+    // Allocate memory to store window average data
+    AD.window_average_data = new float[AD.NUM_VALUES / WINDOW_SIZE];
+
+    // Allocate memory to store maxima data
+    AD.maxima = new float[AD.NUM_VALUES / WINDOW_SIZE];
+    AD.maxima[0] = 0;
+    AD.maxima[AD.NUM_VALUES / WINDOW_SIZE - 1] = 0;
+
+    // Allocate memory to store minima
+    AD.minima = new float[AD.NUM_WINDOWS];
+
+    // Run window averaging
+    wa_runner_cuda(AD, TD);
+
+    // Run find peaks to locate pulses
+    find_peaks_cuda_runner(AD, TD);
+
+    // Run find minima to find minimum in pulse containing regions
+    find_minima_cuda_runner(AD, TD);
+
+    /*
+    // Count found minima to ensure correct value
+    for (size_t i = 0; i < AD.NUM_WINDOWS; i++) {
+        if (AD.minima[i] != 0) {
+            AD.minima_count += 1;
+        }
+    }
+    std::cout << "Minima found: " << AD.minima_count << std::endl;
+    */
+
+    // Delete allocated memory for window average data and maxima
+    delete[] AD.window_average_data;
+    delete[] AD.maxima;
 }

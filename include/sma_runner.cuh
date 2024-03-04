@@ -29,7 +29,7 @@ struct algorithm_data {
     float* cudaMI; // minima
 };
 
-void sma(struct algorithm_data& AD, struct timing_data& TD);
 void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD);
 void find_peaks_cuda_runner(struct algorithm_data& AD, struct timing_data& TD);
-void find_minima_runner_cuda(struct algorithm_data& AD, struct timing_data& TD);
+void find_minima_cuda_runner(struct algorithm_data& AD, struct timing_data& TD);
+void sma(struct algorithm_data& AD, struct timing_data& TD);

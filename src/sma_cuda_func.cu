@@ -1,5 +1,5 @@
-#include "sma_runner.cuh"
-#include "sma_cuda_func.cuh"
+#include "../include/sma_cuda_func.cuh"
+#include "../include/sma_runner.cuh"
 
 __global__ void find_minima_cuda(float* raw_data, float* maxima, float* minima) {
     // Get array index

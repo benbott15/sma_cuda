@@ -1,8 +1,8 @@
 #include <iostream>
 #include <filesystem>
 #include <fstream>
-#include <file_operations.h>
-#include "sma_runner.cuh"
+#include "../include/file_operations.h"
+#include "../include/sma_runner.cuh"
 
 int main(int argc, char* argv[]) {
     // Read in arguments

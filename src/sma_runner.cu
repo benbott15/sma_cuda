@@ -2,17 +2,12 @@
 #include <fstream>
 #include <chrono>
 #include <cublas_v2.h>
+#include <string>
 #include "../include/sma_runner.cuh"
 #include "../include/sma_cuda_func.cuh"
 #include "../include/file_operations.h"
 
 void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
-    // Setup timing information
-    cudaEvent_t     start, stop;
-    cudaEventCreate( &start );
-    cudaEventCreate( &stop );
-    cudaEventRecord( start, 0 );
-
     // Initialize cublas (cuda linear algebra library)
     cublasStatus_t status;
     cublasHandle_t handle;
@@ -32,14 +27,42 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     cudaMalloc(&AD.cudaWA, AD.NUM_WINDOWS * sizeof(float));
     cudaMalloc(&cudaV, WINDOW_SIZE * sizeof(float));
 
+    // Setup timing information for raw data transfer to GPU memory
+    cudaEvent_t     start, stop;
+    cudaEventCreate( &start );
+    cudaEventCreate( &stop );
+    cudaEventRecord( start, 0 );
+
     // Transfer raw_data array and no. windows to GPU memory
     cudaMemcpy(AD.cudaRD, AD.raw_data, AD.NUM_VALUES * sizeof(float), cudaMemcpyHostToDevice);
     cudaMemcpy(cudaV, avg_vector, WINDOW_SIZE * sizeof(float), cudaMemcpyHostToDevice);
 
+    // Record timing information for raw data transfer to GPU memory
+    cudaEventRecord( stop, 0 );
+    cudaEventSynchronize( stop );
+    float   elapsed_time;
+    cudaEventElapsedTime( &elapsed_time, start, stop );
+    printf( "Time to transfer raw data:  %3.4f ms\n", elapsed_time );
+
     // Run cublas float gemv with a thread count of WINDOW_SIZE in each block
     float alpha = 1.0;
     float beta = 0.0;
+
+    // Setup timing information for window averaging
+    cudaEvent_t     start_wa, stop_wa;
+    cudaEventCreate( &start_wa );
+    cudaEventCreate( &stop_wa );
+    cudaEventRecord( start_wa, 0 );
+
     status = cublasSgemv(handle, CUBLAS_OP_T, WINDOW_SIZE, AD.NUM_WINDOWS, &alpha, AD.cudaRD, WINDOW_SIZE, cudaV, 1, &beta, AD.cudaWA, 1);
+
+    // Record timing information for window averaging
+    cudaEventRecord( stop_wa, 0 );
+    cudaEventSynchronize( stop_wa );
+    float   elapsed_time_wa;
+    cudaEventElapsedTime( &elapsed_time_wa, start_wa, stop_wa );
+    printf( "Time to window average:  %3.4f ms\n", elapsed_time_wa );
+
     std::cout << "cublasSgemv: " << cublasGetStatusString(status) << std::endl;
 
     // Free allocated memory
@@ -47,38 +70,29 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     status = cublasDestroy(handle);
     std::cout << "cublasDestroy: " << cublasGetStatusString(status) << std::endl;
 
-    // Record timing information
-    cudaEventRecord( stop, 0 );
-    cudaEventSynchronize( stop );
-    float   elapsed_time;
-    cudaEventElapsedTime( &elapsed_time, start, stop );
-    printf( "Time to window average:  %3.4f ms\n", elapsed_time );
-    TD.avg_delta_wavg += elapsed_time;
+    TD.avg_delta_transin += elapsed_time;
+    TD.avg_delta_wavg += elapsed_time_wa;
 }
 
 void find_peaks_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
+    // Local copy of no. windows as int to pass to cuda kernal
+    int NUM_WINDOWS = static_cast<int>(AD.NUM_WINDOWS);
+
+    // Allocate memory for maxima and no. windows
+    cudaMalloc(&AD.cudaM, (AD.NUM_WINDOWS - 2) * sizeof(int));
+    cudaMalloc(&AD.cudaNUM_WINDOWS, sizeof(int));
+
+    // Transfer no. windows to GPU memory
+    cudaMemcpy(AD.cudaNUM_WINDOWS, &NUM_WINDOWS, sizeof(int), cudaMemcpyHostToDevice);
+
     // Setup timing information
     cudaEvent_t     start, stop;
     cudaEventCreate( &start );
     cudaEventCreate( &stop );
     cudaEventRecord( start, 0 );
 
-    // Local copy of no. windows as int to pass to cuda kernal
-    int NUM_WINDOWS = static_cast<int>(AD.NUM_WINDOWS);
-
-    // Allocate memory for maxima and no. windows
-    cudaMalloc(&AD.cudaM, (AD.NUM_WINDOWS - 2) * sizeof(float));
-    cudaMalloc(&AD.cudaNUM_WINDOWS, sizeof(int));
-
-    // Transfer no. windows to GPU memory
-    cudaMemcpy(AD.cudaNUM_WINDOWS, &NUM_WINDOWS, sizeof(int), cudaMemcpyHostToDevice);
-
     // Run find_peaks_cuda func. with a thread count of 20 in each block
     find_peaks_cuda <<< (AD.NUM_WINDOWS / 20), 20 >>> (AD.cudaWA, AD.cudaM, AD.cudaNUM_WINDOWS);
-
-    // Free allocated memory
-    cudaFree(AD.cudaWA);
-    cudaFree(AD.cudaNUM_WINDOWS);
 
     // Record timing information
     cudaEventRecord( stop, 0 );
@@ -86,37 +100,59 @@ void find_peaks_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
     float   elapsed_time;
     cudaEventElapsedTime( &elapsed_time, start, stop );
     printf( "Time to find peaks:  %3.4f ms\n", elapsed_time );
+
+    // Free allocated memory
+    cudaFree(AD.cudaWA);
+    cudaFree(AD.cudaNUM_WINDOWS);
+
+    // Record timing information to timing_data struct
     TD.avg_delta_peak += elapsed_time;
 }
 
-void find_minima_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
-    // Setup timing information
-    cudaEvent_t     start, stop;
-    cudaEventCreate( &start );
-    cudaEventCreate( &stop );
-    cudaEventRecord( start, 0 );
-    
+void find_minima_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {    
     // Allocate memory on GPU for minima data
     cudaMalloc(&AD.cudaMI, AD.NUM_WINDOWS * sizeof(float));
+
+    // Setup timing information for find minima
+    cudaEvent_t     start_min, stop_min;
+    cudaEventCreate( &start_min );
+    cudaEventCreate( &stop_min );
+    cudaEventRecord( start_min, 0 );
 
     // Run find_minima_cuda
     find_minima_cuda <<< (AD.NUM_WINDOWS / 20), 20 >>> (AD.cudaRD, AD.cudaM, AD.cudaMI);
 
+    // Record timing information for find minima
+    cudaEventRecord( stop_min, 0 );
+    cudaEventSynchronize( stop_min );
+    float   elapsed_time_min;
+    cudaEventElapsedTime( &elapsed_time_min, start_min, stop_min );
+    printf( "Time to find minima:  %3.4f ms\n", elapsed_time_min );
+
+    // Setup timing information for minima transfer to ram
+    cudaEvent_t     start, stop;
+    cudaEventCreate( &start );
+    cudaEventCreate( &stop );
+    cudaEventRecord( start, 0 );
+
     // Copy wa back to gpu memory
     cudaMemcpy(AD.minima, AD.cudaMI, AD.NUM_WINDOWS * sizeof(float), cudaMemcpyDeviceToHost);
+
+    // Record timing information for minima transfer to ram
+    cudaEventRecord( stop, 0 );
+    cudaEventSynchronize( stop );
+    float   elapsed_time;
+    cudaEventElapsedTime( &elapsed_time, start, stop );
+    printf( "Time to transfer minima:  %3.4f ms\n", elapsed_time );
 
     // Free allocated memory
     cudaFree(AD.cudaM);
     cudaFree(AD.cudaRD);
     cudaFree(AD.cudaMI);
 
-    // Record timing information
-    cudaEventRecord( stop, 0 );
-    cudaEventSynchronize( stop );
-    float   elapsed_time;
-    cudaEventElapsedTime( &elapsed_time, start, stop );
-    printf( "Time to find minima:  %3.4f ms\n", elapsed_time );
-    TD.avg_delta_min += elapsed_time;
+    // Record timing to timing data struct
+    TD.avg_delta_min += elapsed_time_min;
+    TD.avg_delta_transout += elapsed_time;
 }
 
 void sma(struct algorithm_data& AD, struct timing_data& TD) {
@@ -124,7 +160,7 @@ void sma(struct algorithm_data& AD, struct timing_data& TD) {
     AD.window_average_data = new float[AD.NUM_VALUES / WINDOW_SIZE];
 
     // Allocate memory to store maxima data
-    AD.maxima = new float[AD.NUM_VALUES / WINDOW_SIZE];
+    AD.maxima = new int[AD.NUM_VALUES / WINDOW_SIZE];
     AD.maxima[0] = 0;
     AD.maxima[AD.NUM_VALUES / WINDOW_SIZE - 1] = 0;
 

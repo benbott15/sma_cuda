@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #define WINDOW_SIZE 5
 #define THRESHOLD 2000
 #define BASELINE 2170.4567071690453
@@ -28,11 +30,11 @@ struct algorithm_data {
     int* cudaNUM_WINDOWS;
     float* raw_data;
     float* window_average_data;
-    float* maxima;
+    int* maxima;
     float* minima;
     float* cudaRD;
     float* cudaWA;
-    float* cudaM; // maxima
+    int* cudaM; // maxima
     float* cudaMI; // minima
 };
 

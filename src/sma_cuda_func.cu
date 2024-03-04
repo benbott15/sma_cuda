@@ -1,7 +1,7 @@
 #include "../include/sma_cuda_func.cuh"
 #include "../include/sma_runner.cuh"
 
-__global__ void find_minima_cuda(float* raw_data, float* maxima, float* minima) {
+__global__ void find_minima_cuda(float* raw_data, int* maxima, float* minima) {
     // Get array index
     int globalId = blockDim.x * blockIdx.x + threadIdx.x;
 
@@ -26,7 +26,7 @@ __global__ void find_minima_cuda(float* raw_data, float* maxima, float* minima) 
     }
 }
 
-__global__ void find_peaks_cuda(float* window_av, float* maxima, int* NUM_WINDOWS) {
+__global__ void find_peaks_cuda(float* window_av, int* maxima, int* NUM_WINDOWS) {
     // Get array index
     int globalId = blockDim.x * blockIdx.x + threadIdx.x;
 

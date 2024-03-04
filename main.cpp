@@ -5,6 +5,12 @@
 #include "include/sma_runner.cuh"
 
 int main(int argc, char* argv[]) {
+    if (argc != 1 || argc != 2) {
+        std::cout << "Error: Invalid Command Line Arguments - run '-h' for help" << std::endl;
+        std::cout << "SMA: Exiting" << std::endl;
+        exit(0);
+    }
+
     // Read first argument
     const std::string FILEIN(argv[1]);
 
@@ -15,16 +21,13 @@ int main(int argc, char* argv[]) {
         std::cout << "Input Parameters (2):" << std::endl;
         std::cout << "1: FILEPATH - help: file path to .bin file containing raw_data" << std::endl;
         std::cout << "2: NUM_ITER - help: number of iterations to run for averaging of timing resutls" << std::endl;
-        std::cout << "exiting" << std::endl;
+        std::cout << "SMA: Exiting" << std::endl;
         exit(0);
     }
 
-    // Argument count
-    int count;
-
     // Print arguments to user
     std::cout << "ARGUMENTS" << std::endl;
-    for (count = 0; count < argc; count++) {
+    for (int count = 0; count < argc; count++) {
         std::cout << "ARGUMENT " << count << ": " << argv[count] << std::endl;
     }
 
@@ -44,7 +47,9 @@ int main(int argc, char* argv[]) {
     raw_data = new float[DATA_PACKET_SIZE];
 
     // Read in input data
+    std::cout << "SMA: Reading file ..." << std::endl;
     read_bin(FILEIN, raw_data, DATA_PACKET_SIZE);
+    std::cout << "SMA: File read" << std::endl;
 
     // Create struct to store algortim information
     struct algorithm_data AD = {DATA_PACKET_SIZE, // NUM_VALUES
@@ -63,6 +68,7 @@ int main(int argc, char* argv[]) {
     struct timing_data TD = {0,0,0,0};
 
     for (size_t i = 0; i < NUM_ITER; i++) {
+        std::cout << "SMA: Running iteration " << i << std::endl;
         // Run loop to run sma algorithm NUM_ITER times and sum timing results
         const auto t1 = std::chrono::high_resolution_clock::now();
         // Run sma algorithm
@@ -86,11 +92,15 @@ int main(int argc, char* argv[]) {
     std::ofstream timing_data;
     timing_data.open("tests/timing_data.csv", std::ios::app);
 
+    std::cout << "SMA: Writing timing data and minima outputs to tests/" << std::endl;
     timing_data << "CUDA" << "," << AD.NUM_VALUES << "," << TD.avg_delta_wavg << "," << TD.avg_delta_peak << "," << TD.avg_delta_min << "," << TD.avg_delta << std::endl;
     timing_data.close();
 
     // Write minima information to binary file
     write_bin(FILEOUT, AD.minima, AD.NUM_WINDOWS);
+
+    std::cout << "SMA: Finished writing data" << std::endl;
+    std::cout << "SMA: Completed sucessfully, exiting" << std::endl;
 
     // Delete memory assigned for minima
     delete[] AD.minima;

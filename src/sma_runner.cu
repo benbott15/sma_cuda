@@ -12,7 +12,8 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     cublasStatus_t status;
     cublasHandle_t handle;
     status = cublasCreate(&handle);
-    std::cout << "cublasCreate: " << cublasGetStatusString(status) << std::endl;
+    std::cout << "cublasCreate: " << cublasGetStatusString(status) 
+      << std::endl;
 
     // Define pointer for cuda avg_vector
     float* cudaV;
@@ -20,7 +21,8 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     // Create vector for matrix reduction operation
     float* avg_vector;
     avg_vector = new float[WINDOW_SIZE];
-    for (size_t i = 0; i < WINDOW_SIZE; i++) {avg_vector[i] = (float)1 / WINDOW_SIZE;}
+    for (size_t i = 0; i < WINDOW_SIZE; i++) {avg_vector[i] = (float)1 
+      / WINDOW_SIZE;}
 
     // Allocate memory for raw data, window average array and avg_vector
     cudaMalloc(&AD.cudaRD, AD.NUM_VALUES * sizeof(float));
@@ -34,8 +36,10 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     cudaEventRecord( start, 0 );
 
     // Transfer raw_data array and no. windows to GPU memory
-    cudaMemcpy(AD.cudaRD, AD.raw_data, AD.NUM_VALUES * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(cudaV, avg_vector, WINDOW_SIZE * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(AD.cudaRD, AD.raw_data, AD.NUM_VALUES * sizeof(float),
+               cudaMemcpyHostToDevice);
+    cudaMemcpy(cudaV, avg_vector, WINDOW_SIZE * sizeof(float),
+               cudaMemcpyHostToDevice);
 
     // Record timing information for raw data transfer to GPU memory
     cudaEventRecord( stop, 0 );
@@ -54,7 +58,9 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     cudaEventCreate( &stop_wa );
     cudaEventRecord( start_wa, 0 );
 
-    status = cublasSgemv(handle, CUBLAS_OP_T, WINDOW_SIZE, AD.NUM_WINDOWS, &alpha, AD.cudaRD, WINDOW_SIZE, cudaV, 1, &beta, AD.cudaWA, 1);
+    status = cublasSgemv(handle, CUBLAS_OP_T, WINDOW_SIZE, AD.NUM_WINDOWS,
+                         &alpha, AD.cudaRD, WINDOW_SIZE, cudaV, 1, &beta,
+                         AD.cudaWA, 1);
 
     // Record timing information for window averaging
     cudaEventRecord( stop_wa, 0 );
@@ -63,12 +69,14 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     cudaEventElapsedTime( &elapsed_time_wa, start_wa, stop_wa );
     printf( "Time to window average:  %3.4f ms\n", elapsed_time_wa );
 
-    std::cout << "cublasSgemv: " << cublasGetStatusString(status) << std::endl;
+    std::cout << "cublasSgemv: " << cublasGetStatusString(status)
+      << std::endl;
 
     // Free allocated memory
     cudaFree(cudaV);
     status = cublasDestroy(handle);
-    std::cout << "cublasDestroy: " << cublasGetStatusString(status) << std::endl;
+    std::cout << "cublasDestroy: " << cublasGetStatusString(status)
+      << std::endl;
 
     TD.avg_delta_transin += elapsed_time;
     TD.avg_delta_wavg += elapsed_time_wa;
@@ -83,7 +91,8 @@ void find_peaks_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
     cudaMalloc(&AD.cudaNUM_WINDOWS, sizeof(int));
 
     // Transfer no. windows to GPU memory
-    cudaMemcpy(AD.cudaNUM_WINDOWS, &NUM_WINDOWS, sizeof(int), cudaMemcpyHostToDevice);
+    cudaMemcpy(AD.cudaNUM_WINDOWS, &NUM_WINDOWS, sizeof(int),
+               cudaMemcpyHostToDevice);
 
     // Setup timing information
     cudaEvent_t     start, stop;
@@ -92,7 +101,8 @@ void find_peaks_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
     cudaEventRecord( start, 0 );
 
     // Run find_peaks_cuda func. with a thread count of 20 in each block
-    find_peaks_cuda <<< (AD.NUM_WINDOWS / 20), 20 >>> (AD.cudaWA, AD.cudaM, AD.cudaNUM_WINDOWS);
+    find_peaks_cuda <<< (AD.NUM_WINDOWS / 20), 20
+      >>> (AD.cudaWA, AD.cudaM, AD.cudaNUM_WINDOWS);
 
     // Record timing information
     cudaEventRecord( stop, 0 );
@@ -109,7 +119,8 @@ void find_peaks_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {
     TD.avg_delta_peak += elapsed_time;
 }
 
-void find_minima_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) {    
+void find_minima_cuda_runner(struct algorithm_data& AD,
+                             struct timing_data& TD) {    
     // Allocate memory on GPU for minima data
     cudaMalloc(&AD.cudaMI, AD.NUM_WINDOWS * sizeof(float));
 
@@ -120,7 +131,8 @@ void find_minima_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) 
     cudaEventRecord( start_min, 0 );
 
     // Run find_minima_cuda
-    find_minima_cuda <<< (AD.NUM_WINDOWS / 20), 20 >>> (AD.cudaRD, AD.cudaM, AD.cudaMI);
+    find_minima_cuda <<< (AD.NUM_WINDOWS / 20), 20
+      >>> (AD.cudaRD, AD.cudaM, AD.cudaMI);
 
     // Record timing information for find minima
     cudaEventRecord( stop_min, 0 );
@@ -136,7 +148,8 @@ void find_minima_cuda_runner(struct algorithm_data& AD, struct timing_data& TD) 
     cudaEventRecord( start, 0 );
 
     // Copy wa back to gpu memory
-    cudaMemcpy(AD.minima, AD.cudaMI, AD.NUM_WINDOWS * sizeof(float), cudaMemcpyDeviceToHost);
+    cudaMemcpy(AD.minima, AD.cudaMI, AD.NUM_WINDOWS * sizeof(float),
+               cudaMemcpyDeviceToHost);
 
     // Record timing information for minima transfer to ram
     cudaEventRecord( stop, 0 );
@@ -244,8 +257,12 @@ void initialize_sma(const struct program_args& PA) {
         std::ofstream timing_data;
         timing_data.open(PA.TIMING_OUT, std::ios::app);
     
-        std::cout << "SMA: Writing timing data and minima outputs to tests/" << std::endl;
-        timing_data << "CUDA" << "," << AD.NUM_VALUES << "," << TD.avg_delta_transin << "," << TD.avg_delta_wavg << "," << TD.avg_delta_peak << "," << TD.avg_delta_min << "," << TD.avg_delta_transout << "," << TD.avg_delta << std::endl;
+        std::cout << "SMA: Writing timing data and minima outputs to tests/"
+          << std::endl;
+        timing_data << "CUDA" << "," << AD.NUM_VALUES << ","
+          << TD.avg_delta_transin << "," << TD.avg_delta_wavg << ","
+          << TD.avg_delta_peak << "," << TD.avg_delta_min << ","
+          << TD.avg_delta_transout << "," << TD.avg_delta << std::endl;
         timing_data.close();
     
         // Write minima information to binary file

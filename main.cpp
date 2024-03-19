@@ -42,7 +42,6 @@ int main(int argc, char* argv[]) {
 
     // Setup program_args
     struct program_args PA = {*FILEIN, DATA_PACKET_SIZE, NUM_ITER};
-
-    // Run initialize_sma from sma_runner.cu
+    
     initialize_sma(PA);
 }

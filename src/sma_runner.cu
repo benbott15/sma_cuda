@@ -6,6 +6,7 @@
 #include "../include/sma_runner.cuh"
 #include "../include/sma_cuda_func.cuh"
 #include "../include/file_operations.h"
+#include "../include/file_operations_gds.cuh"
 
 void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     // Initialize cublas (cuda linear algebra library)
@@ -25,7 +26,7 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
       / WINDOW_SIZE;}
 
     // Allocate memory for raw data, window average array and avg_vector
-    cudaMalloc(&AD.cudaRD, AD.NUM_VALUES * sizeof(float));
+    //cudaMalloc(&AD.cudaRD, AD.NUM_VALUES * sizeof(float)); File directly read in via gds no need to allocate new memory
     cudaMalloc(&AD.cudaWA, AD.NUM_WINDOWS * sizeof(float));
     cudaMalloc(&cudaV, WINDOW_SIZE * sizeof(float));
 
@@ -36,8 +37,8 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     cudaEventRecord( start, 0 );
 
     // Transfer raw_data array and no. windows to GPU memory
-    cudaMemcpy(AD.cudaRD, AD.raw_data, AD.NUM_VALUES * sizeof(float),
-               cudaMemcpyHostToDevice);
+    //cudaMemcpy(AD.cudaRD, AD.raw_data, AD.NUM_VALUES * sizeof(float), // File directly read in via gds no need to transfer from host memory
+    //           cudaMemcpyHostToDevice);
     cudaMemcpy(cudaV, avg_vector, WINDOW_SIZE * sizeof(float),
                cudaMemcpyHostToDevice);
 
@@ -46,7 +47,7 @@ void wa_runner_cuda(struct algorithm_data& AD, struct timing_data& TD) {
     cudaEventSynchronize( stop );
     float   elapsed_time;
     cudaEventElapsedTime( &elapsed_time, start, stop );
-    printf( "Time to transfer raw data:  %3.4f ms\n", elapsed_time );
+    printf( "Time to transfer window average vector:  %3.4f ms\n", elapsed_time );
 
     // Run cublas float gemv with a thread count of WINDOW_SIZE in each block
     float alpha = 1.0;
@@ -140,14 +141,14 @@ void find_minima_cuda_runner(struct algorithm_data& AD,
     float   elapsed_time_min;
     cudaEventElapsedTime( &elapsed_time_min, start_min, stop_min );
     printf( "Time to find minima:  %3.4f ms\n", elapsed_time_min );
-
+    /*
     // Setup timing information for minima transfer to ram
     cudaEvent_t     start, stop;
     cudaEventCreate( &start );
     cudaEventCreate( &stop );
     cudaEventRecord( start, 0 );
 
-    // Copy wa back to gpu memory
+    // Copy minima back to host memory
     cudaMemcpy(AD.minima, AD.cudaMI, AD.NUM_WINDOWS * sizeof(float),
                cudaMemcpyDeviceToHost);
 
@@ -157,38 +158,28 @@ void find_minima_cuda_runner(struct algorithm_data& AD,
     float   elapsed_time;
     cudaEventElapsedTime( &elapsed_time, start, stop );
     printf( "Time to transfer minima:  %3.4f ms\n", elapsed_time );
-
+    */
     // Free allocated memory
     cudaFree(AD.cudaM);
-    cudaFree(AD.cudaRD);
-    cudaFree(AD.cudaMI);
+    //cudaFree(AD.cudaRD);
+    //cudaFree(AD.cudaMI);
 
     // Record timing to timing data struct
     TD.avg_delta_min += elapsed_time_min;
-    TD.avg_delta_transout += elapsed_time;
+    //TD.avg_delta_transout += elapsed_time;
 }
 
 void sma(struct algorithm_data& AD, struct timing_data& TD) {
-    // Allocate memory to store window average data
-    AD.window_average_data = new float[AD.NUM_VALUES / WINDOW_SIZE];
-
-    // Allocate memory to store maxima data
-    AD.maxima = new int[AD.NUM_VALUES / WINDOW_SIZE];
-    AD.maxima[0] = 0;
-    AD.maxima[AD.NUM_VALUES / WINDOW_SIZE - 1] = 0;
-
     // Allocate memory to store minima
     AD.minima = new float[AD.NUM_WINDOWS];
 
     // Run window averaging
     wa_runner_cuda(AD, TD);
-
     // Run find peaks to locate pulses
     find_peaks_cuda_runner(AD, TD);
 
     // Run find minima to find minimum in pulse containing regions
     find_minima_cuda_runner(AD, TD);
-
     /*
     // Count found minima to ensure correct value
     for (size_t i = 0; i < AD.NUM_WINDOWS; i++) {
@@ -198,79 +189,99 @@ void sma(struct algorithm_data& AD, struct timing_data& TD) {
     }
     std::cout << "Minima found: " << AD.minima_count << std::endl;
     */
-
-    // Delete allocated memory for window average data and maxima
-    delete[] AD.window_average_data;
-    delete[] AD.maxima;
 }
 
 void initialize_sma(const struct program_args& PA) {
-        // Assign memory to store input file data
-        float* raw_data;
-        raw_data = new float[PA.DATA_PACKET_SIZE / sizeof(float)];
+    // Read in input data
+    std::cout << "SMA: Reading file ..." << std::endl;
     
-        // Read in input data
-        std::cout << "SMA: Reading file ..." << std::endl;
-        read_bin(PA.FILEIN, raw_data, PA.DATA_PACKET_SIZE / sizeof(float));
-        std::cout << "SMA: File read" << std::endl;
+    cudaEvent_t     start, stop;
+    cudaEventCreate( &start );
+    cudaEventCreate( &stop );
+    cudaEventRecord( start, 0 );
+
+    gds* gds_reader = new gds(PA.FILEIN, PA.DATA_PACKET_SIZE);
+    gds_reader->read();
+    float* cudaRD_ptr = (float*)gds_reader->get_ptr();
     
-        // Create struct to store algortim information
-        struct algorithm_data AD = {PA.DATA_PACKET_SIZE / sizeof(float), // NUM_VALUES
-                            PA.DATA_PACKET_SIZE / sizeof(float) / WINDOW_SIZE, // NUM_WINDOWS
-                            0, // minima_count
-                            NULL, // cudaNUM_WINDOWS
-                            raw_data, // raw_data
-                            NULL, // window_average_data
-                            NULL, // maxima
-                            NULL, //minima
-                            NULL, // cudaRD
-                            NULL, // cudaWA
-                            NULL}; // cudaM
+    cudaEventRecord( stop, 0 );
+    cudaEventSynchronize( stop );
+    float   elapsed_time;
+    cudaEventElapsedTime( &elapsed_time, start, stop );
+    printf( "Time to read raw data:  %3.4f ms\n", elapsed_time );
+
+    //read_bin(PA.FILEIN, raw_data, PA.DATA_PACKET_SIZE / sizeof(float));
+    std::cout << "SMA: File read" << std::endl;
+
+    // Create struct to store algortim information
+    struct algorithm_data AD = {PA.DATA_PACKET_SIZE / sizeof(float), // NUM_VALUES
+                        PA.DATA_PACKET_SIZE / sizeof(float) / WINDOW_SIZE, // NUM_WINDOWS
+                        0, // minima_count
+                        NULL, // cudaNUM_WINDOWS
+                        NULL, //minima
+                        cudaRD_ptr, // cudaRD
+                        NULL, // cudaWA
+                        NULL, // cudaM
+                        NULL}; // cudaMI
+
+    // Create struct to store timing information
+    struct timing_data TD = {0,0,0,0,0,0};
+
+    for (int i = 0; i < PA.NUM_ITER; i++) {
+        std::cout << "SMA: Running iteration " << i << std::endl;
+        // Run loop to run sma algorithm NUM_ITER times and sum timing results
+        const auto t1 = std::chrono::high_resolution_clock::now();
+        // Run sma algorithm
+        sma(AD, TD);
+        const auto t2 = std::chrono::high_resolution_clock::now();
+        const std::chrono::duration<double> ms_double = t2 - t1;
+        // Sum timing results
+        TD.avg_delta += ms_double.count();
+    }
+
+    // Calculate average timing results from summed
+    TD.avg_delta /= PA.NUM_ITER;
+    TD.avg_delta_transin /= PA.NUM_ITER;
+    TD.avg_delta_wavg /= PA.NUM_ITER;
+    TD.avg_delta_peak /= PA.NUM_ITER;
+    TD.avg_delta_min /= PA.NUM_ITER;
+    TD.avg_delta_transout /= PA.NUM_ITER;
+
+
+    std::cout << "SMA: Writing timing data and minima outputs to tests/"
+      << std::endl;
+
+    // Write minima information to binary file
+    cudaEvent_t     start_write, stop_write;
+    cudaEventCreate( &start_write );
+    cudaEventCreate( &stop_write );
+    cudaEventRecord( start_write, 0 );
+
+    gds gds_writer = gds(PA.MINIMA_OUT, AD.NUM_WINDOWS * sizeof(float));
+    gds_writer.write(AD.cudaMI);
     
-        // Create struct to store timing information
-        struct timing_data TD = {0,0,0,0,0,0};
-    
-        for (int i = 0; i < PA.NUM_ITER; i++) {
-            std::cout << "SMA: Running iteration " << i << std::endl;
-            // Run loop to run sma algorithm NUM_ITER times and sum timing results
-            const auto t1 = std::chrono::high_resolution_clock::now();
-            // Run sma algorithm
-            sma(AD, TD);
-            const auto t2 = std::chrono::high_resolution_clock::now();
-            const std::chrono::duration<double> ms_double = t2 - t1;
-            // Sum timing results
-            TD.avg_delta += ms_double.count();
-        }
-    
-        // Delete assigned memory for raw_data
-        delete[] AD.raw_data;
-    
-        // Calculate average timing results from summed
-        TD.avg_delta /= PA.NUM_ITER;
-        TD.avg_delta_transin /= PA.NUM_ITER;
-        TD.avg_delta_wavg /= PA.NUM_ITER;
-        TD.avg_delta_peak /= PA.NUM_ITER;
-        TD.avg_delta_min /= PA.NUM_ITER;
-        TD.avg_delta_transout /= PA.NUM_ITER;
-    
-        // Export timing data to timing_data.csv
-        std::ofstream timing_data;
-        timing_data.open(PA.TIMING_OUT, std::ios::app);
-    
-        std::cout << "SMA: Writing timing data and minima outputs to tests/"
-          << std::endl;
-        timing_data << "CUDA" << "," << AD.NUM_VALUES << ","
-          << TD.avg_delta_transin << "," << TD.avg_delta_wavg << ","
-          << TD.avg_delta_peak << "," << TD.avg_delta_min << ","
-          << TD.avg_delta_transout << "," << TD.avg_delta << std::endl;
-        timing_data.close();
-    
-        // Write minima information to binary file
-        write_bin(PA.MINIMA_OUT, AD.minima, AD.NUM_WINDOWS);
-    
-        std::cout << "SMA: Finished writing data" << std::endl;
-        std::cout << "SMA: Completed sucessfully, exiting" << std::endl;
-    
-        // Delete memory assigned for minima
-        delete[] AD.minima;
+    cudaEventRecord( stop_write, 0 );
+    cudaEventSynchronize( stop_write );
+    float   elapsed_time_write;
+    cudaEventElapsedTime( &elapsed_time_write, start_write, stop_write );
+    printf( "Time to write minima:  %3.4f ms\n", elapsed_time_write );
+
+    cudaFree(AD.cudaMI);
+
+    // Export timing data to timing_data.csv
+    std::ofstream timing_data;
+    timing_data.open(PA.TIMING_OUT, std::ios::app);
+
+    timing_data << "CUDA" << "," << AD.NUM_VALUES << ","
+      << TD.avg_delta_transin << "," << TD.avg_delta_wavg << ","
+      << TD.avg_delta_peak << "," << TD.avg_delta_min << ","
+      << elapsed_time << "," << elapsed_time_write << ","
+      << TD.avg_delta << std::endl;
+    timing_data.close();
+
+    std::cout << "SMA: Finished writing data" << std::endl;
+    std::cout << "SMA: Completed sucessfully, exiting" << std::endl;
+
+    // Delete memory assigned for minima
+    delete[] AD.minima;
 }

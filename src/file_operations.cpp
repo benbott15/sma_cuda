@@ -30,5 +30,3 @@ void write_bin(const std::string& filename, float* input, int size) {
         throw std::runtime_error("Could not open file");
     }
 }
-
-std::cout << "Hello" << std::endl;

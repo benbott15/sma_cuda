@@ -28,9 +28,6 @@ struct algorithm_data {
     const size_t NUM_WINDOWS;
     int minima_count;
     int* cudaNUM_WINDOWS;
-    float* raw_data;
-    float* window_average_data;
-    int* maxima;
     float* minima;
     float* cudaRD;
     float* cudaWA;
